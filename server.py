@@ -33,67 +33,103 @@ def main():
 
 def handle_dialog(req, res):
     user_id = req['session']['user_id']
-    user_answer = req['request']['original_utterance'].lower()
+    user_answer = req['request']['nlu']['intents']
     if req['session']['new']:
         # sessionStorage['quizzes'] = requests.get('http://адрес нашего сайта/api/quiz').json()['quiz']
         with open('all_quizzes.json', 'r') as file:
             sessionStorage['quizzes'] = json.load(file)
-
+        sessionStorage[user_id] = {}
         sessionStorage[user_id]['status'] = 'start'
         greet = greeting()
         res['response']['text'] = greet['text']
+        res['response']['tts'] = greet['text']
         res['response']['buttons'] = greet['buttons']
         return
     if sessionStorage[user_id]['status'] == 'start':
 
-        if user_answer == "да, давай" or req['request']['nlu']['intents']['YANDEX.CONFIRM']:
+        if 'YANDEX.CONFIRM' in user_answer:
             random_quiz(user_id)
             passing_the_quiz(req, res)
-        elif user_answer == 'нет' or req['request']['nlu']['intents']['YANDEX.REJECT']:
+        elif 'YANDEX.REJECT' in user_answer:
+            res['response']['tts'] = 'Хорошо, тогда можешь посмотреть топ викторин'
             res['response']['text'] = 'Хорошо, тогда можешь посмотреть топ викторин'
             res['response']['card'] = show_top()['card']
-        elif user_answer == 'что ты можешь?':
+            sessionStorage[user_id]['status'] = 'idling'
+        elif 'WHAT_YOU_CAN_DO' in user_answer:
             res['response']['text'] = '''Я могу запустить случайную или выбранную тобой викторину, 
             могу вывести топ самых проходимых. А если ты не нашел той викторины, которую хотел пройти,  
             можешь сам ее создать'''
-            res['response']['buttons'] = get_idle_suggests()
+            res['response']['tts'] = '''Я могу запустить случайную или выбранную тобой викторину, 
+                        могу вывести топ самых проходимых. А если ты не нашел той викторины, которую хотел пройти,  
+                        можешь сам ее создать'''
+            res['response']['buttons'] = get_idle_suggests()['buttons']
             sessionStorage[user_id]['status'] = 'idling'
-        elif user_answer == 'расскажи правила' or user_answer == 'помощь':
+        elif 'YANDEX.HELP' in user_answer:
             res['response']['text'] = '''Викторины состоят из нескольких вопросов, в ответ на каждый ты
              можешь выбрать один вариант из нескольких предложенных. Ответив на каждый вопрос, ты узнаешь результат'''
-            res['response']['buttons'] = get_idle_suggests()
+            res['response']['tts'] = '''Викторины состоят из нескольких вопросов, в ответ на каждый ты
+                         можешь выбрать один вариант из нескольких предложенных. Ответив на каждый вопрос, ты узнаешь результат'''
+            res['response']['buttons'] = get_idle_suggests()['buttons']
             sessionStorage[user_id]['status'] = 'idling'
         else:
-            res['response']['text'] = unrecognized_phrase()['text']
+            unrec_phrase = unrecognized_phrase()
+            res['response']['text'] = unrec_phrase['text']
+            res['response']['tts'] = unrec_phrase['text']
+
+            res['response']['buttons'] = get_idle_suggests()['buttons']
+
         return
+
     if sessionStorage[user_id]['status'] == 'passing_the_quiz':
-        if user_answer in ['выход', 'стоп']:
+        if 'STOP' in user_answer:
             res['response']['text'] = 'Хорошо, выхожу из викторины'
+            res['response']['tts'] = 'Хорошо, выхожу из викторины'
             sessionStorage[user_id]['status'] = 'idling'
         else:
             passing_the_quiz(req, res)
         return
+
+
+
     if sessionStorage[user_id]['status'] == 'idling':
-        if user_answer == 'выведи топ викторин':
-            show_top()
-        elif 'запусти викторину' in user_answer:
+        if 'SHOW_TOP' in user_answer:
+            res['response']['tts'] = 'Окей, вот текущий топ викторин'
+            res['response']['text'] = 'Окей, вот текущий топ викторин'
+            res['response']['card'] = show_top()['card']
+        elif 'START_QUIZ' in user_answer:
+            quiz_title = user_answer['START_QUIZ']['slots']['quiz_title']['value']
             sessionStorage[user_id]['current_quiz'] = user_answer.split('запусти викторину')[-1].strip()
             sessionStorage[user_id]['status'] = 'passing_the_quiz'
             sessionStorage[user_id]['current_question'] = 0
             passing_the_quiz(req, res)
-        elif user_answer == 'запусти случайную викторину':
+        elif 'START_RANDOM_QUIZ' in user_answer:
             random_quiz(user_id)
-        elif user_answer == 'я хочу создать викторину':
+        elif 'CREATE_QUIZ' in user_answer:
             create_quiz()
-        elif user_answer == 'что ты можешь?':
+        elif 'WHAT_YOU_CAN_DO' in user_answer:
             res['response']['text'] = '''Я могу запустить случайную или выбранную тобой викторину, 
             могу вывести топ самых проходимых. А если ты не нашел той викторины, которую хотел пройти,  
             можешь сам ее создать'''
-            res['response']['buttons'] = get_idle_suggests()
-        elif user_answer == 'расскажи правила':
+            res['response']['tts'] = '''Я могу запустить случайную или выбранную тобой викторину, 
+                        могу вывести топ самых проходимых. А если ты не нашел той викторины, которую хотел пройти,  
+                        можешь сам ее создать'''
+            res['response']['buttons'] = get_idle_suggests()['buttons']
+        elif 'YANDEX.HELP' in user_answer:
             res['response']['text'] = '''Викторины состоят из нескольких вопросов, в ответ на каждый ты
              можешь выбрать один вариант из нескольких предложенных. Ответив на каждый вопрос, ты узнаешь результат'''
-            res['response']['buttons'] = get_idle_suggests()
+            res['response']['tts'] = '''Викторины состоят из нескольких вопросов, в ответ на каждый ты
+                         можешь выбрать один вариант из нескольких предложенных. Ответив на каждый вопрос, ты узнаешь результат'''
+            res['response']['buttons'] = get_idle_suggests()['buttons']
+        elif 'STOP' in user_answer:
+            res['response']['text'] = 'Пока, возвращайся еще'
+            res['response']['tts'] = 'Пока, возвращайся еще'
+            res['response']['end_session'] = True
+        else:
+            unrec_phrase = unrecognized_phrase()
+            res['response']['text'] = unrec_phrase['text']
+            res['response']['tts'] = unrec_phrase['text']
+
+            res['response']['buttons'] = get_idle_suggests()['buttons']
 
 def get_idle_suggests():
     result = {
@@ -119,7 +155,7 @@ def get_idle_suggests():
                  "hide": True
              },
              {
-                 "title": "Расскажи правила",
+                 "title": "Помощь",
                  "payload": {},
                  "hide": True
              }
@@ -144,24 +180,29 @@ def unrecognized_phrase():
 def show_top():
     result = {
         'card': {
-            'type' : 'ItemList',
-            "header": {
-                "text": "Заголовок списка изображений",
-            },
-            'items': []
-        },
-        'buttons': [
+            'type': 'ItemsList',
+            "header":
             {
-                "title": "Викторина 1",
-                "payload": {},
-                "hide": True
+                "text": "Текущий топ викторин",
             },
-            {
-                "title": "Викторина 2",
-                "payload": {},
-                "hide": True
+            'items':
+                [
+                    {
+                        "title": "Викторина 1",
+                        "description": "Классная викторина",
+                        "button":
+                        {
+                            "text": "Выбрать первый вариант",
+                            "payload": {}
+                        }
+                    }
+                ],
+            "footer": {
+                "text": "Выбери викторину, и я ее запущу",
             }
-        ]
+            },
+
+        'buttons': []
 
 
     }
